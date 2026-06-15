@@ -32,5 +32,5 @@ export const categoryLabel = {
 export const getImageUrl = (path) => {
   if (!path) return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80';
   if (path.startsWith('http')) return path;
-  return `${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}${path}`;
+  return `${process.env.REACT_APP_API_URL?.replace('/api', '') || ''}${path}`;
 };
