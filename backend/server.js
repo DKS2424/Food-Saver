@@ -40,6 +40,11 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
 
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'FoodSaver API is running', timestamp: new Date() });
+});
+
 // Serve React frontend in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/build')));
@@ -47,11 +52,6 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
   });
 }
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'FoodSaver API is running', timestamp: new Date() });
-});
 
 // Socket.io
 io.on('connection', (socket) => {
