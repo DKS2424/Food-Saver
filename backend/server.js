@@ -37,7 +37,6 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/food', require('./routes/food'));
 app.use('/api/requests', require('./routes/requests'));
 app.use('/api/admin', require('./routes/admin'));
-app.use('/api', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
 
 // Health check
