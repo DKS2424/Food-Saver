@@ -11,7 +11,7 @@ const { sendNotification } = require('../utils/notifications');
 // Create request
 router.post('/', protect, authorize('receiver', 'admin'), async (req, res) => {
   try {
-    const { foodListingId, message, pickupTime } = req.body;
+    const { foodListingId, message, quantityRequested, quantityUnit, requesterPhone, pickupTime } = req.body;
 
     const listing = await FoodListing.findById(foodListingId);
     if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
@@ -29,6 +29,9 @@ router.post('/', protect, authorize('receiver', 'admin'), async (req, res) => {
       requester: req.user._id,
       donor: listing.donor,
       message,
+      quantityRequested: quantityRequested || listing.quantity,
+      quantityUnit: quantityUnit || listing.quantityUnit,
+      requesterPhone: requesterPhone || req.user.phone,
       pickupTime
     });
 
@@ -36,9 +39,11 @@ router.post('/', protect, authorize('receiver', 'admin'), async (req, res) => {
 
     const io = req.app.get('io');
 
+    const phoneInfo = requesterPhone || req.user.phone;
+    const qtyInfo = quantityRequested ? ` (${quantityRequested} ${quantityUnit || listing.quantityUnit})` : '';
     await sendNotification(
       listing.donor,
-      `📦 New request from ${req.user.name} for "${listing.title}"`,
+      `📦 ${req.user.name} requested "${listing.title}"${qtyInfo}${phoneInfo ? ` · 📞 ${phoneInfo}` : ''}`,
       'info', '/dashboard', io
     );
 

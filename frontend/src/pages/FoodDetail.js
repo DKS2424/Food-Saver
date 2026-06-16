@@ -15,19 +15,34 @@ const FoodDetail = () => {
   const [requesting, setRequesting] = useState(false);
   const [message, setMessage] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [quantityRequested, setQuantityRequested] = useState('');
+  const [quantityUnit, setQuantityUnit] = useState('kg');
+  const [requesterPhone, setRequesterPhone] = useState(user?.phone || '');
 
   useEffect(() => {
     api.get(`/food/${id}`).then(({ data }) => {
-      if (data.success) setListing(data.data);
+      if (data.success) {
+        setListing(data.data);
+        setQuantityRequested(data.data.quantity || '');
+        setQuantityUnit(data.data.quantityUnit || 'kg');
+      }
     }).catch(() => toast.error('Failed to load listing')).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (user?.phone) setRequesterPhone(user.phone);
+  }, [user]);
 
   const handleRequest = async () => {
     if (!user) { navigate('/login'); return; }
     if (user.role === 'donor') { toast.error('Switch to a receiver account to request food'); return; }
     setRequesting(true);
     try {
-      const { data } = await api.post('/requests', { foodListingId: id, message });
+      const { data } = await api.post('/requests', {
+        foodListingId: id, message,
+        quantityRequested, quantityUnit,
+        requesterPhone: requesterPhone || user?.phone
+      });
       if (data.success) {
         toast.success('🎉 Request sent! The donor will be notified.');
         setShowForm(false);
@@ -126,6 +141,7 @@ const FoodDetail = () => {
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15 }}>{listing.donor.name}</div>
                   {listing.donor.organization && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{listing.donor.organization}</div>}
+                  {listing.donor.phone && <div style={{ color: 'var(--accent-green)', fontSize: 13, marginTop: 2 }}>📞 {listing.donor.phone}</div>}
                 </div>
                 <div style={{ marginLeft: 'auto', color: 'var(--accent-yellow)', fontSize: 14 }}>★ {listing.donor.rating?.toFixed(1) || '5.0'}</div>
               </div>
@@ -146,11 +162,30 @@ const FoodDetail = () => {
                 </button>
               ) : (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label" style={{ fontSize: 12 }}>Qty Needed</label>
+                      <input className="form-input" type="number" placeholder="Qty" value={quantityRequested} onChange={e => setQuantityRequested(e.target.value)}
+                        style={{ padding: '10px 12px' }} />
+                    </div>
+                    <div style={{ width: 100 }}>
+                      <label className="form-label" style={{ fontSize: 12 }}>Unit</label>
+                      <select className="form-input" value={quantityUnit} onChange={e => setQuantityUnit(e.target.value)}
+                        style={{ padding: '10px 12px' }}>
+                        {['kg','liter','pieces','servings','packets'].map(u => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label className="form-label" style={{ fontSize: 12 }}>Your Phone (donor will see this)</label>
+                    <input className="form-input" type="tel" placeholder="+91 98765 43210" value={requesterPhone} onChange={e => setRequesterPhone(e.target.value)}
+                      style={{ padding: '10px 12px' }} />
+                  </div>
                   <textarea className="form-input" placeholder="Add a message to the donor (optional)..." value={message} onChange={e => setMessage(e.target.value)}
-                    style={{ resize: 'vertical', minHeight: 90, marginBottom: 12 }} />
+                    style={{ resize: 'vertical', minHeight: 70, marginBottom: 12 }} />
                   <div style={{ display: 'flex', gap: 12 }}>
                     <button onClick={handleRequest} disabled={requesting} className="btn btn-primary" style={{ flex: 1 }}>
-                      {requesting ? '⏳ Sending...' : '✅ Confirm Request'}
+                      {requesting ? '⏳ Sending...' : '📞 Send Inquiry'}
                     </button>
                     <button onClick={() => setShowForm(false)} className="btn btn-secondary">Cancel</button>
                   </div>

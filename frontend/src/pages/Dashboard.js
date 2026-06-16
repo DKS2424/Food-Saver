@@ -42,6 +42,12 @@ const RequestCard = ({ request, onAction, isIncoming }) => {
           {isIncoming ? `From: ${request.requester?.name}` : `To: ${request.donor?.name}`}
           {request.foodListing?.location?.city && ` · 📍 ${request.foodListing.location.city}`}
         </p>
+        {(request.quantityRequested || request.requesterPhone) && (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+            {request.quantityRequested && <span>📦 {request.quantityRequested} {request.quantityUnit} needed</span>}
+            {request.requesterPhone && <span> · 📞 {request.requesterPhone}</span>}
+          </p>
+        )}
         {request.message && <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8 }}>"{request.message}"</p>}
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{timeAgo(request.createdAt)}</span>
       </div>

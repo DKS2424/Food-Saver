@@ -10,6 +10,9 @@ const requestSchema = new mongoose.Schema({
     default: 'pending'
   },
   message: { type: String },
+  quantityRequested: { type: String },
+  quantityUnit: { type: String, default: 'kg' },
+  requesterPhone: { type: String },
   pickupTime: { type: Date },
   completedAt: { type: Date },
   cancelledAt: { type: Date },
