@@ -64,6 +64,11 @@ const AppInner = () => {
                 <DonateFood />
               </ProtectedRoute>
             }/>
+            <Route path="/edit/:id" element={
+              <ProtectedRoute roles={['donor','admin']}>
+                <DonateFood />
+              </ProtectedRoute>
+            }/>
 
             <Route path="/dashboard" element={
               <ProtectedRoute>

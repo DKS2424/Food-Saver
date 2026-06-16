@@ -20,7 +20,15 @@ const FoodDetail = () => {
   const [requesterPhone, setRequesterPhone] = useState(user?.phone || '');
 
   useEffect(() => {
-    api.get(`/food/${id}`).then(({ data }) => {
+    const viewed = JSON.parse(localStorage.getItem('fs_viewed') || '[]');
+    const isFirstView = !viewed.includes(id);
+    const v = isFirstView ? '1' : '0';
+    if (isFirstView) {
+      localStorage.setItem('fs_viewed', JSON.stringify([...viewed, id]));
+    }
+
+    api.get(`/food/${id}?v=${v}`).then(({ data }) => {
+      console.log(`[view-debug] id=${id} sent_v=${v} got_v=${data._v} views=${data.data?.views}`);
       if (data.success) {
         setListing(data.data);
         setQuantityRequested(data.data.quantity || '');
@@ -126,11 +134,20 @@ const FoodDetail = () => {
             </div>
 
             {/* Flags */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               {listing.isVegetarian && <span className="badge badge-available">🌱 Vegetarian</span>}
               {listing.isVegan && <span className="badge badge-available">🌿 Vegan</span>}
               {listing.allergens?.map(a => <span key={a} className="badge badge-pending">{a}</span>)}
             </div>
+            {listing.tags?.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
+                {listing.tags.map(tag => (
+                  <span key={tag} style={{ background: 'rgba(0,188,212,0.1)', border: '1px solid rgba(0,188,212,0.2)', borderRadius: 6, padding: '3px 10px', fontSize: 12, color: 'var(--accent-teal)', fontWeight: 500 }}>
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Donor info */}
             {listing.donor && (

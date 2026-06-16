@@ -48,11 +48,17 @@ router.get('/', async (req, res) => {
 // Get single listing
 router.get('/:id', async (req, res) => {
   try {
-    const listing = await FoodListing.findByIdAndUpdate(
-      req.params.id, { $inc: { views: 1 } }, { new: true }
-    ).populate('donor', 'name avatar organization phone rating address');
+    const listing = await FoodListing.findById(req.params.id)
+      .populate('donor', 'name avatar organization phone rating address');
     if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
-    res.json({ success: true, data: listing });
+
+    if (req.query.v !== '0') {
+      await FoodListing.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } });
+      listing.views = (listing.views || 0) + 1;
+    }
+
+    console.log(`[view-debug] GET /${req.params.id} v=${req.query.v} views=${listing.views}`);
+    res.json({ success: true, data: listing, _v: req.query.v });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -105,14 +111,46 @@ router.post('/', protect, authorize('donor', 'admin'), upload.array('images', 5)
 });
 
 // Update listing
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, upload.array('images', 5), async (req, res) => {
   try {
     const listing = await FoodListing.findById(req.params.id);
     if (!listing) return res.status(404).json({ success: false, message: 'Not found' });
     if (listing.donor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
-    const updated = await FoodListing.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+    const updateData = { ...req.body };
+
+    if (req.files && req.files.length > 0) {
+      updateData.images = req.files.map(f => `/uploads/${f.filename}`);
+    }
+
+    if (updateData.isVegetarian !== undefined) {
+      updateData.isVegetarian = updateData.isVegetarian === 'true' || updateData.isVegetarian === true;
+    }
+    if (updateData.isVegan !== undefined) {
+      updateData.isVegan = updateData.isVegan === 'true' || updateData.isVegan === true;
+    }
+    if (updateData.allergens && typeof updateData.allergens === 'string') {
+      updateData.allergens = updateData.allergens.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (updateData.tags && typeof updateData.tags === 'string') {
+      updateData.tags = updateData.tags.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (updateData.address || updateData.city) {
+      updateData.location = {
+        address: updateData.address || listing.location?.address || '',
+        city: updateData.city || listing.location?.city || '',
+        state: updateData.state || listing.location?.state || '',
+        pincode: updateData.pincode || listing.location?.pincode || '',
+      };
+      delete updateData.address;
+      delete updateData.city;
+      delete updateData.state;
+      delete updateData.pincode;
+    }
+
+    const updated = await FoodListing.findByIdAndUpdate(req.params.id, updateData, { new: true });
     res.json({ success: true, data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

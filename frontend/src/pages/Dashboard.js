@@ -65,7 +65,7 @@ const RequestCard = ({ request, onAction, isIncoming }) => {
 };
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('overview');
   const [stats, setStats] = useState(null);
@@ -119,8 +119,13 @@ const Dashboard = () => {
 
   const handleMarkAllRead = async () => {
     setMarkingAll(true);
-    try { await api.put('/notifications/read-all'); toast.success('All notifications read'); } 
-    catch (e) {}
+    try {
+      await api.put('/notifications/read-all');
+      if (user?.notifications) {
+        updateUser({ notifications: user.notifications.map(n => ({ ...n, read: true })) });
+      }
+      toast.success('All notifications read');
+    } catch (e) {}
     finally { setMarkingAll(false); }
   };
 
@@ -237,6 +242,7 @@ const Dashboard = () => {
                           <span className={`badge badge-${l.status}`}>{l.status}</span>
                           <span style={{ fontSize: 12, color: getTimeLeft(l.expiryTime).color }}>{getTimeLeft(l.expiryTime).text}</span>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>👁 {l.views}</span>
+                          {l.status === 'available' && <Link to={`/edit/${l._id}`} className="btn btn-secondary btn-sm">Edit</Link>}
                           <button onClick={() => handleDeleteListing(l._id)} className="btn btn-danger btn-sm">Delete</button>
                         </div>
                       </div>

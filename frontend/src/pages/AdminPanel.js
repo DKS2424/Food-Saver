@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { timeAgo } from '../utils/helpers';
+import { timeAgo, categoryEmoji } from '../utils/helpers';
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -119,7 +119,24 @@ const AdminPanel = () => {
   // UPDATE LISTING
   const updateListing = async () => {
     try {
-      await api.put(`/admin/listings/${editListing._id}`, editListing);
+      const payload = {
+        title: editListing.title,
+        description: editListing.description,
+        category: editListing.category,
+        quantity: editListing.quantity,
+        quantityUnit: editListing.quantityUnit,
+        expiryTime: editListing.expiryTime,
+        status: editListing.status,
+        address: editListing.address,
+        city: editListing.city,
+        pincode: editListing.pincode,
+        pickupInstructions: editListing.pickupInstructions || '',
+        isVegetarian: editListing.isVegetarian,
+        isVegan: editListing.isVegan || false,
+        allergens: editListing.allergens || [],
+        tags: editListing.tags || [],
+      };
+      await api.put(`/food/${editListing._id}`, payload);
       toast.success('Listing updated');
       setEditListing(null);
       loadData();
@@ -304,7 +321,7 @@ return (
         </>
       )}
 
-      {/* 🔥 LISTINGS UI UPGRADE */}
+      {/* LISTINGS */}
       {tab === 'listings' && (
         listings.map(l => (
           <div key={l._id} style={{
@@ -315,20 +332,30 @@ return (
             marginBottom: 10,
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 8
           }}>
             <div>
-              <div style={{ fontWeight: 600 }}>{l.title}</div>
+              <div style={{ fontWeight: 600 }}>{categoryEmoji[l.category]} {l.title}</div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                👤 {l.donor?.name || 'Unknown'}
+                👤 {l.donor?.name || 'Unknown'} · {l.quantity} {l.quantityUnit} · 📍 {l.location?.city || 'N/A'}
               </div>
+              <span className={`badge badge-${l.status}`} style={{ marginTop: 4 }}>{l.status}</span>
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 className="btn btn-sm"
                 style={{ background: '#7c3aed', color: '#fff' }}
-                onClick={() => setEditListing(l)}
+                onClick={() => setEditListing({
+                  ...l,
+                  address: l.location?.address || '',
+                  city: l.location?.city || '',
+                  pincode: l.location?.pincode || '',
+                  allergens: l.allergens?.join(', ') || '',
+                  tags: l.tags?.join(', ') || '',
+                })}
               >
                 Edit
               </button>
@@ -383,14 +410,114 @@ return (
         </div>
       )}
 
-      {/* EDIT LISTING */}
+      {/* EDIT LISTING MODAL */}
       {editListing && (
-        <div className="modal">
-          <input
-            value={editListing.title}
-            onChange={e => setEditListing({...editListing, title: e.target.value})}
-          />
-          <button onClick={updateListing}>Save</button>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+        }} onClick={() => setEditListing(null)}>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+            padding: 28, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, marginBottom: 20 }}>
+              ✏️ Edit Listing — {editListing.title}
+            </h3>
+
+            <div className="form-group">
+              <label className="form-label">Title</label>
+              <input className="form-input" value={editListing.title} onChange={e => setEditListing({...editListing, title: e.target.value})} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Description</label>
+              <textarea className="form-input" value={editListing.description || ''} onChange={e => setEditListing({...editListing, description: e.target.value})} style={{ minHeight: 70, resize: 'vertical' }} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Category</label>
+                <select className="form-input" value={editListing.category} onChange={e => setEditListing({...editListing, category: e.target.value})}>
+                  {['cooked-meals','raw-vegetables','fruits','dairy','bakery','packaged','beverages','other'].map(c => (
+                    <option key={c} value={c}>{c.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select className="form-input" value={editListing.status} onChange={e => setEditListing({...editListing, status: e.target.value})}>
+                  {['available','pending','claimed','expired','cancelled'].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Quantity</label>
+                <input className="form-input" value={editListing.quantity || ''} onChange={e => setEditListing({...editListing, quantity: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Unit</label>
+                <select className="form-input" value={editListing.quantityUnit} onChange={e => setEditListing({...editListing, quantityUnit: e.target.value})}>
+                  {['kg','liter','pieces','servings','packets'].map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Expiry Time</label>
+              <input className="form-input" type="datetime-local" value={editListing.expiryTime ? new Date(editListing.expiryTime).toISOString().slice(0, 16) : ''} onChange={e => setEditListing({...editListing, expiryTime: e.target.value})} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Address</label>
+                <input className="form-input" value={editListing.address || ''} onChange={e => setEditListing({...editListing, address: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">City</label>
+                <input className="form-input" value={editListing.city || ''} onChange={e => setEditListing({...editListing, city: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Pincode</label>
+              <input className="form-input" value={editListing.pincode || ''} onChange={e => setEditListing({...editListing, pincode: e.target.value})} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Pickup Instructions</label>
+              <textarea className="form-input" value={editListing.pickupInstructions || ''} onChange={e => setEditListing({...editListing, pickupInstructions: e.target.value})} style={{ minHeight: 50, resize: 'vertical' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                <input type="checkbox" checked={editListing.isVegetarian} onChange={e => setEditListing({...editListing, isVegetarian: e.target.checked})} style={{ accentColor: 'var(--accent-green)' }} />
+                🌱 Vegetarian
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                <input type="checkbox" checked={editListing.isVegan} onChange={e => setEditListing({...editListing, isVegan: e.target.checked})} style={{ accentColor: 'var(--accent-green)' }} />
+                🌿 Vegan
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Allergens (comma-separated)</label>
+              <input className="form-input" value={editListing.allergens || ''} onChange={e => setEditListing({...editListing, allergens: e.target.value})} placeholder="nuts, gluten, dairy" />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 24 }}>
+              <label className="form-label">Tags (comma-separated)</label>
+              <input className="form-input" value={editListing.tags || ''} onChange={e => setEditListing({...editListing, tags: e.target.value})} placeholder="hot-food, ready-to-eat" />
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={updateListing} className="btn btn-primary" style={{ flex: 1 }}>💾 Save Changes</button>
+              <button onClick={() => setEditListing(null)} className="btn btn-secondary">Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -10,17 +10,48 @@ const UNITS = ['kg','liter','pieces','servings','packets'];
 
 const DonateFood = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = Boolean(id);
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(isEditing);
   const [imagePreview, setImagePreview] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
   const [form, setForm] = useState({
     title: '', description: '', category: 'cooked-meals', quantity: '', quantityUnit: 'kg',
     expiryTime: '', address: '', city: '', pincode: '', pickupInstructions: '',
     isVegetarian: true, isVegan: false, allergens: '', tags: ''
   });
 
-  if (!user) return <div style={{ paddingTop: 120, textAlign: 'center' }}><p>Please <a href="/login" style={{ color: 'var(--accent-green)' }}>login</a> to donate food</p></div>;
+  useEffect(() => {
+    if (!id) return;
+    api.get(`/food/${id}`).then(({ data }) => {
+      if (data.success) {
+        const l = data.data;
+        setForm({
+          title: l.title || '',
+          description: l.description || '',
+          category: l.category || 'cooked-meals',
+          quantity: l.quantity || '',
+          quantityUnit: l.quantityUnit || 'kg',
+          expiryTime: l.expiryTime ? new Date(l.expiryTime).toISOString().slice(0, 16) : '',
+          address: l.location?.address || '',
+          city: l.location?.city || '',
+          pincode: l.location?.pincode || '',
+          pickupInstructions: l.pickupInstructions || '',
+          isVegetarian: l.isVegetarian !== false,
+          isVegan: l.isVegan || false,
+          allergens: l.allergens?.join(', ') || '',
+          tags: l.tags?.join(', ') || ''
+        });
+        setExistingImages(l.images || []);
+      }
+    }).catch(() => toast.error('Failed to load listing')).finally(() => setPageLoading(false));
+  }, [id]);
+
+  if (!user) return <div style={{ paddingTop: 120, textAlign: 'center' }}><p>Please <a href="/login" style={{ color: 'var(--accent-green)' }}>login</a> to {isEditing ? 'edit' : 'donate'} food</p></div>;
   if (user.role === 'receiver') return <div style={{ paddingTop: 120, textAlign: 'center' }}><p>Donor accounts can post food donations</p></div>;
+  if (pageLoading) return <div style={{ paddingTop: 120, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>;
 
   const handleChange = e => {
     const { name, value, type, checked } = e.target;
@@ -37,21 +68,36 @@ const DonateFood = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const fd = new FormData(e.target);
+      const fd = new FormData();
+      fd.append('title', form.title);
+      fd.append('description', form.description);
+      fd.append('category', form.category);
+      fd.append('quantity', form.quantity);
+      fd.append('quantityUnit', form.quantityUnit);
+      fd.append('expiryTime', form.expiryTime);
+      fd.append('address', form.address);
+      fd.append('city', form.city);
+      fd.append('pincode', form.pincode);
+      fd.append('pickupInstructions', form.pickupInstructions);
       fd.append('allergens', form.allergens || '');
       fd.append('tags', form.tags || '');
-      fd.append('location[address]', form.address);
-      fd.append('location[city]', form.city);
-      fd.append('location[pincode]', form.pincode);
       fd.append('isVegetarian', form.isVegetarian ? 'true' : 'false');
       fd.append('isVegan', form.isVegan ? 'true' : 'false');
-      const { data } = await api.post('/food', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+
+      const fileInput = document.querySelector('input[name="images"]');
+      if (fileInput?.files?.length) {
+        for (const f of fileInput.files) fd.append('images', f);
+      }
+
+      const endpoint = isEditing ? `/food/${id}` : '/food';
+      const method = isEditing ? api.put : api.post;
+      const { data } = await method(endpoint, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (data.success) {
-        toast.success('🎉 Food listing created! Receivers will be notified.');
+        toast.success(isEditing ? '✅ Listing updated!' : '🎉 Food listing created! Receivers will be notified.');
         navigate(`/food/${data.data._id}`);
       }
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to create listing');
+      toast.error(e.response?.data?.message || `Failed to ${isEditing ? 'update' : 'create'} listing`);
     } finally { setLoading(false); }
   };
 
@@ -63,9 +109,9 @@ const DonateFood = () => {
         <div className="container">
           <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
             style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(28px,4vw,44px)', marginBottom: 8 }}>
-            Donate <span className="text-gradient">Surplus Food</span>
+            {isEditing ? 'Edit' : 'Donate'} <span className="text-gradient">{isEditing ? 'Food Listing' : 'Surplus Food'}</span>
           </motion.h1>
-          <p style={{ color: 'var(--text-secondary)' }}>List your surplus food and help reduce waste</p>
+          <p style={{ color: 'var(--text-secondary)' }}>{isEditing ? 'Update your food listing details' : 'List your surplus food and help reduce waste'}</p>
         </div>
       </div>
 
@@ -193,10 +239,15 @@ const DonateFood = () => {
               <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Click to upload photos (max 5, 5MB each)</p>
               <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>JPG, PNG, WebP supported</p>
             </label>
-            {imagePreview.length > 0 && (
+            {(imagePreview.length > 0 || existingImages.length > 0) && (
               <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+                {existingImages.map((src, i) => (
+                  <div key={`old-${i}`} style={{ width: 80, height: 80, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border)', position: 'relative' }}>
+                    <img src={src.startsWith('http') ? src : (process.env.REACT_APP_API_URL?.replace('/api','') || '') + src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display='none'} />
+                  </div>
+                ))}
                 {imagePreview.map((src, i) => (
-                  <div key={i} style={{ width: 80, height: 80, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border)' }}>
+                  <div key={`new-${i}`} style={{ width: 80, height: 80, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--accent-green)' }}>
                     <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 ))}
@@ -205,7 +256,7 @@ const DonateFood = () => {
           </div>
 
           <button type="submit" disabled={loading} className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-            {loading ? '⏳ Creating Listing...' : '🍱 Create Food Listing'}
+            {loading ? '⏳ Saving...' : isEditing ? '💾 Save Changes' : '🍱 Create Food Listing'}
           </button>
         </motion.form>
       </div>

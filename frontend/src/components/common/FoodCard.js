@@ -68,6 +68,17 @@ const FoodCard = ({ listing, index = 0 }) => {
             {listing.description}
           </p>
 
+          {listing.tags?.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+              {listing.tags.slice(0, 3).map(tag => (
+                <span key={tag} style={{ background: 'rgba(0,230,118,0.08)', border: '1px solid rgba(0,230,118,0.15)', borderRadius: 4, padding: '2px 8px', fontSize: 11, color: 'var(--accent-green)', fontWeight: 500 }}>
+                  {tag}
+                </span>
+              ))}
+              {listing.tags.length > 3 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>+{listing.tags.length - 3}</span>}
+            </div>
+          )}
+
           {/* Meta row */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
