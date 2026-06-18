@@ -14,6 +14,7 @@ const AdminPanel = () => {
   const [donors, setDonors] = useState([]);
   const [receivers, setReceivers] = useState([]);
   const [listings, setListings] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -49,6 +50,9 @@ const AdminPanel = () => {
       } else if (tab === 'listings') {
         const { data } = await api.get('/admin/listings');
         setListings(data.data || []);
+      } else if (tab === 'requests') {
+        const { data } = await api.get('/admin/requests');
+        setRequests(data.data || []);
       }
     } catch {
       toast.error('Failed to load data');
@@ -114,6 +118,15 @@ const AdminPanel = () => {
     } catch {
       toast.error('Failed');
     }
+  };
+
+  // UPDATE REQUEST STATUS
+  const handleRequestAction = async (id, status) => {
+    try {
+      await api.put(`/admin/requests/${id}/status`, { status });
+      toast.success(`Request ${status}!`);
+      loadData();
+    } catch { toast.error('Action failed'); }
   };
 
   // UPDATE LISTING
@@ -225,7 +238,7 @@ return (
         borderRadius: 12,
         border: '1px solid var(--border)'
       }}>
-        {['stats','donors','receivers','listings'].map(t => (
+        {['stats','donors','receivers','listings','requests'].map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -369,6 +382,68 @@ return (
             </div>
           </div>
         ))
+      )}
+
+      {/* REQUESTS */}
+      {tab === 'requests' && (
+        requests.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📥</div>
+            <p>No requests yet.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {requests.map(r => (
+              <div key={r._id} style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)', padding: 16, display: 'flex',
+                alignItems: 'center', gap: 12, flexWrap: 'wrap'
+              }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: 14 }}>{r.foodListing?.title || 'Unknown'}</strong>
+                    <span className={`badge badge-${r.status}`}>{r.status}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    🏢 {r.requester?.name || 'N/A'} ({r.requester?.organization || 'NGO'})
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    🍱 Donor: {r.donor?.name || 'N/A'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    📦 {r.quantityRequested} {r.quantityUnit} needed · 📞 {r.requesterPhone || r.requester?.phone || 'N/A'}
+                    {r.pickupTime && ` · 🕐 ${new Date(r.pickupTime).toLocaleDateString()}`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {r.status === 'pending' && (
+                    <>
+                      <button className="btn btn-primary btn-sm" onClick={() => handleRequestAction(r._id, 'approved')}>
+                        ✅ Approve
+                      </button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => handleRequestAction(r._id, 'cancelled')}>
+                        ✗ Cancel
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleRequestAction(r._id, 'rejected')}>
+                        ✗ Reject
+                      </button>
+                    </>
+                  )}
+                  {r.status === 'approved' && (
+                    <>
+                      <button className="btn btn-primary btn-sm" onClick={() => handleRequestAction(r._id, 'completed')}>
+                        🎉 Complete
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleRequestAction(r._id, 'cancelled')}>
+                        ✗ Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* ADD MODAL */}

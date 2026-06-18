@@ -20,7 +20,7 @@ router.post('/', protect, authorize('receiver', 'admin'), async (req, res) => {
     const existing = await Request.findOne({
       foodListing: foodListingId,
       requester: req.user._id,
-      status: { $in: ['pending', 'approved'] }
+      status: 'pending'
     });
     if (existing) return res.status(400).json({ success: false, message: 'You already requested this food' });
 
@@ -99,43 +99,62 @@ router.put('/:id/status', protect, async (req, res) => {
     if (cancelReason) request.cancelReason = cancelReason;
 
     const io = req.app.get('io');
+    const listing = request.foodListing;
 
     if (status === 'approved') {
-      await FoodListing.findByIdAndUpdate(request.foodListing._id, {
-        status: 'pending', claimedBy: request.requester._id
-      });
+      const reqQty = parseFloat(request.quantityRequested);
+      const listQty = parseFloat(listing.quantity);
+      const isPartial = !isNaN(reqQty) && !isNaN(listQty) && reqQty > 0 && reqQty < listQty &&
+        request.quantityUnit === listing.quantityUnit;
+
+      if (isPartial) {
+        const remaining = listQty - reqQty;
+        const update = { quantity: String(remaining) };
+        if (remaining <= 0) {
+          update.status = 'claimed';
+          update.claimedBy = request.requester._id;
+        }
+        await FoodListing.findByIdAndUpdate(listing._id, update);
+      } else {
+        await FoodListing.findByIdAndUpdate(listing._id, {
+          status: 'claimed', claimedBy: request.requester._id
+        });
+      }
 
       await sendNotification(
         request.requester._id,
-        `✅ Your request for "${request.foodListing.title}" was APPROVED! Contact donor to arrange pickup.`,
+        `✅ Your request for "${listing.title}" (${request.quantityRequested} ${request.quantityUnit}) was APPROVED! Contact donor to arrange pickup.`,
         'success', '/dashboard', io
       );
 
     } else if (status === 'rejected') {
-      await FoodListing.findByIdAndUpdate(request.foodListing._id, {
-        status: 'available', claimedBy: null
-      });
+      const isPartiallyApproved = listing.status === 'available' && listing.claimedBy === null;
+      if (!isPartiallyApproved) {
+        await FoodListing.findByIdAndUpdate(listing._id, {
+          status: 'available', claimedBy: null
+        });
+      }
 
       await sendNotification(
         request.requester._id,
-        `❌ Your request for "${request.foodListing.title}" was not approved.`,
+        `❌ Your request for "${listing.title}" was not approved.`,
         'warning', '/dashboard', io
       );
 
     } else if (status === 'completed') {
       request.completedAt = new Date();
 
-      await FoodListing.findByIdAndUpdate(request.foodListing._id, {
+      await FoodListing.findByIdAndUpdate(listing._id, {
         status: 'claimed', claimedBy: request.requester._id
       });
 
       await DonationHistory.create({
         donor: request.donor._id,
         receiver: request.requester._id,
-        foodListing: request.foodListing._id,
+        foodListing: listing._id,
         request: request._id,
-        quantity: request.foodListing.quantity,
-        category: request.foodListing.category,
+        quantity: request.quantityRequested || listing.quantity,
+        category: listing.category,
         impact: { mealsProvided: 4, co2Saved: 2.5, waterSaved: 1000 }
       });
 
@@ -144,16 +163,19 @@ router.put('/:id/status', protect, async (req, res) => {
 
       await sendNotification(
         request.requester._id,
-        `🎉 Donation of "${request.foodListing.title}" completed! Thank you.`,
+        `🎉 Donation of "${listing.title}" completed! Thank you.`,
         'success', '/dashboard', io
       );
 
     } else if (status === 'cancelled') {
       request.cancelledAt = new Date();
 
-      await FoodListing.findByIdAndUpdate(request.foodListing._id, {
-        status: 'available', claimedBy: null
-      });
+      const isPartial = listing.status !== 'pending' || listing.claimedBy === null;
+      if (!isPartial) {
+        await FoodListing.findByIdAndUpdate(listing._id, {
+          status: 'available', claimedBy: null
+        });
+      }
     }
 
     await request.save();
